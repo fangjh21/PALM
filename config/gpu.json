@@ -1,0 +1,22 @@
+{
+    "name":"gpu",
+    "intra_s":[4, 2],
+    "inter_s":[2, 2],
+    "intra_bw(GB/s)":600,
+    "inter_bw(GB/s)":64,
+    "t_d_bw(GB/s)":2039,
+    "t_d_cap(GB)":80,
+    "e_d_bw(GB/s)":256,
+    "e_d_cap(GB)":1024,
+    "intra_link_lty(us)":0.001,
+    "inter_link_lty(us)":0.001,
+    "d_lty(us)":0.001,
+    "clk_freq(GHz)":1,
+    "d_per_tile":0,
+    "t_name":"A100",
+    "topology_tpye":"gpu_like",
+    "t_INT8(TOPs)":624,
+    "t_FP16(TFLOPs)":312,
+    "t_FP32(TFLOPs)":19.7,
+    "t_sram_cap(MB)":0
+}

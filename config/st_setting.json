@@ -1,0 +1,7 @@
+{
+    "recompute": "all",
+    "zero": "none",
+    "pipeline": "Dreampipe1F1B",
+    "optimizer": "adam",
+    "test": 1
+}

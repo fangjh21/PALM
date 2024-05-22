@@ -1,0 +1,23 @@
+{
+    "name":"wafer",
+    "intra_s":[4, 4],
+    "inter_s":[5, 4],
+    "intra_bw(GB/s)":1024,
+    "inter_bw(GB/s)":256,
+    "t_d_bw(GB/s)":1,
+    "t_d_cap(GB)":8,
+    "e_d_bw(GB/s)":256,
+    "e_d_cap(GB)":256,
+    "intra_link_lty(us)":0.001,
+    "inter_link_lty(us)":0.001,
+    "d_lty(us)":0.001,
+    "clk_freq(GHz)":1,
+    "d_per_tile":0,
+    "topology_tpye":"mesh",
+    "t_name":"TX8",
+    "t_INT8(TOPs)":32,
+    "t_FP16(TFLOPs)":16,
+    "t_FP32(TFLOPs)":8,
+    "t_sram_cap(MB)":3
+}
+
