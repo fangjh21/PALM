@@ -39,6 +39,14 @@ class Graph:
         pass
 
     @staticmethod
+    def matrix():
+        op0=Op(hint_name='linear_0',op_type=OP.Linear,op_param=[512,1024,1024,1024])
+        op1=Op(hint_name='linear_1',op_type=OP.Linear,op_param=[512,1024,1024,1024])
+        graph = Graph()
+        graph.add_edge(op1,op0)
+        graph.topological_sort()
+        graph.batch_size=512
+        return graph
     #80,2304,2048,12288,96
     def Encoder(name='Bert-base',B=512,S=512,H=1024,A=12,H1=1024*4,L=12):
         if name in ['Bert-base','Bert-large','T-18B','T-39B','T-76B','T-145B','T-310B','T-530B','T-1T','GPT3-175B','LLaMA2-7B']:
