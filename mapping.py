@@ -2,7 +2,7 @@
 from util import *
 from visualize import *
 import math
-def auto_mapping_average_tile(model,hardware,Parallism=[1,1,1,1,1]):
+def auto_mapping_average_tile(model,hardware,Parallism=[1,1,1,1,1],auto_split=False):
     pp_num=Parallism[0]
     assert pp_num<=len(model)
     total_cp=0
@@ -32,8 +32,10 @@ def auto_mapping_average_tile(model,hardware,Parallism=[1,1,1,1,1]):
     #parallelism
     for i in range(cur_id+1):
         for op in stage_ops[i]:
-            op.dpmap(devices=stage_devices[i],p_sgy=Parallism[1:])
-            #op.dpmap(devices=stage_devices[i],p_sgy=[1,len(stage_devices[i]),1,1])
+            if auto_split:
+                op.dpmap(devices=stage_devices[i],p_sgy=[1,len(stage_devices[i]),1,1])
+            else:
+                op.dpmap(devices=stage_devices[i],p_sgy=Parallism[1:])
     draw_mapping(hardware,'test',tiles=stage_devices,path='sim_visualize',ori=False)
     return stage_devices,stage_ops
         

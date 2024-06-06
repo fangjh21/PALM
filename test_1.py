@@ -34,7 +34,7 @@ if __name__ == "__main__":
     print(matrix.batch_size)
     hd = Hardware(env,hd_config,sim_config)
     tx8=Tile(env,hd_config,st_config,sim_config)
-    stage_devices,stage_ops=auto_mapping_average_tile(model=matrix,hardware=hd,pp_num=pipe_config['pp_stage_num'])
+    stage_devices,stage_ops=auto_mapping_average_tile(model=matrix,hardware=hd,Parallism=[pipe_config['pp_stage_num'],1,1,1,1],auto_split=True)
     pipe=Pipeline(env,stage_devices,stage_ops,hd,hd_config,st_config,sim_config,pipe_config)
     pipe.simpy_run(until_ms=ONE_WEEK_MS*10)
     results=pipe.sim_visualize(draw_pipe=True,clear=True,write_log=False)
