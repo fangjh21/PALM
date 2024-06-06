@@ -1,7 +1,7 @@
 {
     "name":"gpu",
     "intra_s":[4, 2],
-    "inter_s":[2, 2],
+    "inter_s":[1, 1],
     "intra_bw(GB/s)":600,
     "inter_bw(GB/s)":64,
     "t_d_bw(GB/s)":2039,
