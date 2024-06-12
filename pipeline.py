@@ -113,7 +113,9 @@ class Pipeline():
                         self.one_fd_finish.put(1)
                 else:
                     raise NotImplementedError 
-                yield self.env.process(stg.up_state(self.hd,c_type=state.forward,wait=1e-15))       
+                yield self.env.process(stg.up_state(self.hd,c_type=state.forward,wait=1e-15)) 
+                if stg.N_devices!=None:
+                    yield self.env.process(self.hd.stage_data_tranfer(stg.C_devices,stg.N_devices,stg.o_size_mb,ar_flag=True))  
     def backward(self,times): 
         for i in range(self.stage_num-1,-1,-1):
             if self.pipe_strategy==pipe.Dreampipe1F1B:
@@ -121,6 +123,8 @@ class Pipeline():
                     a=yield get
                     stg=self.stages[i]
                     yield self.env.process(stg.up_state(self.hd,c_type=state.backward,wait=1e-15))  
+                    if stg.L_devices!=None:
+                        yield self.env.process(self.hd.stage_data_tranfer(stg.C_devices,stg.L_devices,stg.i_size_mb,ar_flag=True))  
                     if i==0:
                         self.cur_bd_times+=1
                     if self.cur_bd_times==times:
@@ -128,6 +132,8 @@ class Pipeline():
             elif  self.pipe_strategy==pipe.GPipe:  
                 stg=self.stages[i]
                 yield self.env.process(stg.up_state(self.hd,c_type=state.backward,wait=1e-15))  
+                if stg.L_devices!=None:
+                    yield self.env.process(self.hd.stage_data_tranfer(stg.C_devices,stg.L_devices,stg.i_size_mb,ar_flag=True))  
                 if i==0:
                     self.cur_bd_times+=1
                 if self.cur_bd_times==times:

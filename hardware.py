@@ -246,16 +246,21 @@ class Hardware:
         #print(node_ids)
         return len(node_ids)==1
     def send_recv(self,src,des,data_size_mb,task_id='send_recv'):
-        list_id ,inter_link_num= self.link_gen(src,des)
-        link_bw=self.intra_bw if inter_link_num==0 else self.inter_bw
-        time_ms = data_size_mb / link_bw+(len(list_id)-inter_link_num)*self.intra_link_l/1000+inter_link_num*self.inter_link_l/1000
+        if self.topo_tpye in ['torus','mesh']:
+            list_id ,inter_link_num= self.link_gen(src,des)
+            link_bw=self.intra_bw if inter_link_num==0 else self.inter_bw
+            time_ms = data_size_mb / link_bw+(len(list_id)-inter_link_num)*self.intra_link_l/1000+inter_link_num*self.inter_link_l/1000
+        else:
+            all_in_one_node_flag=self.all_in_one_node([src,des])
+            link_bw=2*(self.intra_ring_bw if all_in_one_node_flag else self.inter_ring_bw)
+            time_ms = data_size_mb / link_bw+(self.intra_link_l if all_in_one_node_flag else self.inter_link_l)/1000
         info=''
         while True:
             t_ori=self.env.now
-            if  self.analytical:
+            if  self.analytical or self.topo_tpye=='gpu_like':
                 info+='Event {} started at {:.3f} ms\n'.format(task_id,t_ori) 
                 yield self.env.timeout(time_ms)
-                info+='Event {} finished at {:.3f} ms\n'.format(task_id,env.now)
+                info+='Event {} finished at {:.3f} ms\n'.format(task_id,self.env.now)
             else:
                 requests = [self.link[i].request() for i in list_id]
                 yield simpy.AllOf(self.env, requests)
@@ -270,8 +275,7 @@ class Hardware:
             break
         if self.debug:
             print(info)
-    def tile_reduce(self,devices,data_size_mb):
-        pass
+
     def collective_comm(self,devices,data_size_mb,all_in_one_node_flag=None,comm_type=COMM.AR):
         debug=self.debug
         P=len(devices)
@@ -315,14 +319,6 @@ class Hardware:
 
     def tile_d_access(self,data_size_mb_w,data_size_mb_r,device,task_id='dram',write=1,read=0):
         info=''
-        ''''
-        dram_id=self.id_transfer(device)
-        t_ori=self.env.now
-        time_ms=times*(data_size_mb / self.e_d_bw+self.d_l)
-        info+='Event {} started at {:.3f} ms\n'.format(task_id,t_ori) 
-        yield self.env.timeout(time_ms)
-        info+='Event {} finished at {:.3f} ms\n'.format("write" if write>read else "read",self.env.now) 
-        '''
         if self.topo_tpye in ['torus','mesh']:
             src=device
             des,dram_id=self.nearest_dram_of(device)
@@ -375,9 +371,24 @@ class Hardware:
                                                      write=write,read=read,task_id=task_id)) for device in devices]
             yield simpy.AllOf(self.env, events)
             break
-    def stage_data_tranfer(self,src_g,des_g,data_size_mb_of_each,store_flag=True):
-        pass
-
+    def stage_data_tranfer(self,src_g,des_g,data_size_mb_of_each,ar_flag=True):
+        while True:
+            if ar_flag:
+                yield self.env.process(self.send_recv(src_g[-1],des_g[0],data_size_mb_of_each,task_id='send_recv'))
+                yield self.env.process(self.send_recv(src_g[0],des_g[-1],data_size_mb_of_each,task_id='send_recv'))
+            else:
+                P=len(src_g)
+                event=[]
+                for id_idx in range(P-1):
+                    event.append(self.env.process(self.send_recv(src_g[id_idx],src_g[-1],data_size_mb_of_each,)))
+                    yield simpy.AllOf(self.env, event)
+                yield self.env.process(self.send_recv(src_g[-1],des_g[0],data_size_mb_of_each*P,task_id='send_recv'))
+                new_date_size=data_size_mb_of_each*P/len(des_g)
+                P=len(des_g)
+                for id_idx in range(P-1):
+                    event.append(self.env.process(self.send_recv(des_g[0],des_g[id_idx+1],new_date_size,)))
+                    yield simpy.AllOf(self.env, event)
+            break
     def tile_split_by_pp(self,pp_tiles_num=[1,2,3,4]):
         X1,Y1,X0,Y0,=self.X1Y1[0],self.X1Y1[1],self.X0Y0[0],self.X0Y0[1]
         #tile_num=X1*X0*Y0*Y1
