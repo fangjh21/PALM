@@ -26,10 +26,12 @@ class Tile():
         self.opti=st_config["optimizer"]
         self.mode=st_config["mode"]
         #self.BYTES={'NONE':0,'INT8':1,'FP16':2,'TF32':2.375,'FP32':4,'FP64':5}
-
-        #access lookup 
-        self.abcd={'default':[1,1,1,1]}
-
+        #Error correction factor
+        self.tile_factor={
+            'gpu':0.5,
+            'wafer':0.005,
+            'default':0.1,
+            }
         #env 
         self.env=env
         self.analytical=sim_config['analytical']
@@ -194,6 +196,7 @@ class Tile():
         sbytes=t_sgy['sram_weight_bytes']
         dbytes=t_sgy['ior_wsg_bytes']
         df=t_sgy['dataflow']
+        factor=self.tile_factor[hd.name]
         events=[]
         transformer_num=t_sgy['transformer_num']
         transformer_cnt=0
@@ -214,7 +217,7 @@ class Tile():
                         read=min(math.ceil(iwor[0]*dbytes[0]*MB/self.t_sram_cap)*iwor[1]*dbytes[3]*MB,\
                                  math.ceil(iwor[1]*dbytes[3]*MB/self.t_sram_cap)*iwor[0]*dbytes[0]*MB)
                     else:
-                        coe=0.5*math.ceil(iwor[0]*dbytes[0]*MB/self.t_sram_cap)
+                        coe=factor*math.ceil(iwor[0]*dbytes[0]*MB/self.t_sram_cap)
                         write=coe*(iwor[2]*dbytes[1]+iwor[3]*dbytes[2])*MB
                         read=coe*(iwor[0]*dbytes[0]+iwor[1]*dbytes[3]+iwor[3]*dbytes[2])*MB
                 events.append(self.env.process(self.computation(macs_m,compute_power_t)))
@@ -243,7 +246,7 @@ class Tile():
                         read+=min(math.ceil(iwor[0]*dbytes[0]*MB/self.t_sram_cap)*iwor[3]*dbytes[2]*MB,\
                                  math.ceil(iwor[3]*dbytes[2]*MB/self.t_sram_cap)*iwor[0]*dbytes[0]*MB)
                     else:
-                        coe=0.5*math.ceil(iwor[0]*dbytes[0]*MB/self.t_sram_cap)
+                        coe=factor**math.ceil(iwor[0]*dbytes[0]*MB/self.t_sram_cap)
                         write=coe*(iwor[3]*dbytes[2]+iwor[0]*dbytes[0])*MB
                         read=coe*(iwor[0]*dbytes[0]+iwor[1]*dbytes[3]+2*iwor[3]*dbytes[0])*MB
                 events.append(self.env.process(self.computation(macs_m,compute_power_t)))
