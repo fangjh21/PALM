@@ -40,6 +40,8 @@ class Stage():
         pp_infs=pp_infs if train else 1
         #print('pp_infs',pp_infs)  
         self.tile_strategy=self.tile[0].tile_dataflow(self.ops,self.C_devices,pp_infs=pp_infs)
+        self.i_size_mb=sizeof(self.ops[0].i_shape,2)*MB
+        self.o_size_mb=sizeof(self.ops[-1].o_shape,2)*MB
     def up_state(self,hd,c_type=state.forward,wait=1e-15):
         while True:
             with self.qu.request() as req:
@@ -143,7 +145,7 @@ class Pipeline():
             #task_info='input_data_fetch_'+str(i)
             with self.one_data_fetch.put(1)as put:
                 yield put
-                yield self.env.process(self.hd.tile_gd_access(self.stages[0].i_size_mb,self.stages[0].C_devices))
+                yield self.env.process(self.hd.tile_gd_access(self.stages[0].i_size_mb,0,self.stages[0].C_devices,write=0,read=1))
                 
     def register(self): 
         print('----------pipe_info----------')

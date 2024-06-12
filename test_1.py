@@ -37,5 +37,5 @@ if __name__ == "__main__":
     stage_devices,stage_ops=auto_mapping_average_tile(model=matrix,hardware=hd,Parallism=[pipe_config['pp_stage_num'],1,1,1,1],auto_split=True)
     pipe=Pipeline(env,stage_devices,stage_ops,hd,hd_config,st_config,sim_config,pipe_config)
     pipe.simpy_run(until_ms=ONE_WEEK_MS*10)
-    results=pipe.sim_visualize(draw_pipe=True,clear=True,write_log=False)
+    results=pipe.sim_visualize(draw_pipe=hd_config['topology_tpye']=='gpu_like',clear=True,write_log=False)
     print(results)

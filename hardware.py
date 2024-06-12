@@ -313,9 +313,8 @@ class Hardware:
         if debug:
             print(info)
 
-    def tile_d_access(self,data_size_mb,device,task_id='dram',write=1,read=0):
+    def tile_d_access(self,data_size_mb_w,data_size_mb_r,device,task_id='dram',write=1,read=0):
         info=''
-        times=write+read
         ''''
         dram_id=self.id_transfer(device)
         t_ori=self.env.now
@@ -335,7 +334,8 @@ class Hardware:
             #print(list_id ,inter_link_num)
             link_bw=min(self.intra_bw if inter_link_num==0 else self.inter_bw,self.e_d_bw) 
             #print(link_bw,self.inter_bw,self.t_d_bw,self.e_d_bw)
-            time_ms = times*(data_size_mb / link_bw+(len(list_id)-inter_link_num)*self.intra_link_l/1000+inter_link_num*self.inter_link_l/1000+self.d_l)
+            time_ms = write*(data_size_mb_w / link_bw+(len(list_id)-inter_link_num)*self.intra_link_l/1000+inter_link_num*self.inter_link_l/1000+self.d_l)
+            time_ms+=read*(data_size_mb_r / link_bw+(len(list_id)-inter_link_num)*self.intra_link_l/1000+inter_link_num*self.inter_link_l/1000+self.d_l)
             #print(time_ms,data_size_mb)
             while True:
                 t_ori=self.env.now
@@ -349,9 +349,9 @@ class Hardware:
                     info+='Event {} started at {:.3f} ms\n'.format(task_id,t_ori) 
                     if self.dram[dram_id].container!=None:
                         if write:
-                            yield self.dram[dram_id].container.put(data_size_mb)
+                            yield self.dram[dram_id].container.put(data_size_mb_w)
                         else:
-                            yield self.dram[dram_id].container.get(data_size_mb)
+                            yield self.dram[dram_id].container.get(data_size_mb_r)
                         info+='dram rest capacity={} GB\n'.format((self.dram[dram_id].container.capacity-self.dram[dram_id].container.level)/1024)
                     yield self.env.timeout(time_ms)
                     for req in requests:
@@ -362,21 +362,18 @@ class Hardware:
         elif self.topo_tpye== "gpu_like":
             dram_id=self.id_transfer(device)
             t_ori=self.env.now
-            time_ms=times*(data_size_mb / self.t_d_bw+self.d_l)
+            time_ms=write*(data_size_mb_w / self.t_d_bw+self.d_l)+read*(data_size_mb_r / self.t_d_bw+self.d_l)
             info+='Event {} started at {:.3f} ms\n'.format(task_id,t_ori) 
             yield self.env.timeout(time_ms)
             info+='Event {} finished at {:.3f} ms\n'.format("write" if write>read else "read",self.env.now) 
           
         if self.debug:
             print(info)
-    def tile_gd_access(self,data_size_mb_of_each,devices,task_id='dram_group',write=1,read=0):
+    def tile_gd_access(self,data_size_mb_of_each_write,data_size_mb_of_each_read,devices,task_id='dram_group',write=1,read=0):
         while True:
-            #now=self.env.now
-            #print(devices)
-            events = [self.env.process(self.tile_d_access(data_size_mb=data_size_mb_of_each,device=device,\
+            events = [self.env.process(self.tile_d_access(data_size_mb_of_each_write,data_size_mb_of_each_read,device=device,\
                                                      write=write,read=read,task_id=task_id)) for device in devices]
             yield simpy.AllOf(self.env, events)
-            #print(self.env.now-now)
             break
     def stage_data_tranfer(self,src_g,des_g,data_size_mb_of_each,store_flag=True):
         pass

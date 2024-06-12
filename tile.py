@@ -67,7 +67,7 @@ class Tile():
         else:
             raise NotImplementedError
         return cost*coe
-    def compute(self,macs_m,compute_power_t):
+    def computation(self,macs_m,compute_power_t):
         exetime = 2 * macs_m *Ks/ compute_power_t
         #exetime = self.compute_cycles(macs_m) / self.freq 
         if not self.analytical:
@@ -89,7 +89,7 @@ class Tile():
             if self.analytical:
                     events = []
                     for comm_op in comm_ops:
-                        comm_mbytes = comm_op[0] * comm_bytes*Ms
+                        comm_mbytes = comm_op[0] * comm_bytes*MB
                         comm_groups = comm_op[1]
                         comm_type = comm_op[2]
                         for cg in comm_groups:
@@ -101,7 +101,7 @@ class Tile():
                     yield req
                     events = []
                     for comm_op in comm_ops:
-                        comm_mbytes = comm_op[0] * comm_bytes*Ms
+                        comm_mbytes = comm_op[0] * comm_bytes*MB
                         comm_groups = comm_op[1]
                         comm_type = comm_op[2]
                         for cg in comm_groups:
@@ -109,13 +109,6 @@ class Tile():
                     yield simpy.AllOf(self.env, events) 
             
             break
-            '''
-            events = []
-            if dram:
-                for cg in comm_groups:
-                    events.append(self.env.process(hd.tile_gd_access(comm_mbytes, devices=cg)))
-            yield simpy.AllOf(self.env, events) 
-            '''
 
     def tile_dataflow(self,all_ops,tiles,pp_infs:int=1):
         tile_num=len(tiles)
@@ -123,39 +116,39 @@ class Tile():
         t_sgy['dram_cap_req_gb_max']=0
         ops_size=0
         i_size,w_size,o_size,r_size=0,0,0,0
-        t_sgy['iwor_bytes']=[1,1,1,1]
+        t_sgy['ior_wsg_bytes']=[1,1,1,1,1,1]
         sram_weight_bytes=1
         if self.mode==mode.INT8 or self.opti==optimizer.none :
-            #print(self.mode,)
-            t_sgy['iwor_bytes']=[1,1,1,0]
+            t_sgy['ior_wsg_bytes']=[1,1,0,1,0,0]
             sram_weight_bytes=1
             t_sgy['compute_power_t']=self.t_INT8
         elif self.mode==mode.FP16 and self.opti==optimizer.SGD:
-            t_sgy['iwor_bytes']=[2,2,2,2]
+            t_sgy['ior_wsg_bytes']=[2,2,2,2,0,2]
             sram_weight_bytes=2
             t_sgy['compute_power_t']=self.t_FP16
         elif self.mode==mode.FP16 and self.opti==optimizer.adam:
-            t_sgy['iwor_bytes']=[2,2+4+4+4+2,2,2]#权重：2byte+备份4byte,优化器：4+4, 梯度：2
+            t_sgy['ior_wsg_bytes']=[2,2,2,2+4,4+4,2]#权重：2byte+备份4byte,优化器：4+4, 梯度：2
             sram_weight_bytes=2
             t_sgy['compute_power_t']=self.t_FP16
         elif self.mode==mode.FP32 and self.opti==optimizer.adam:
-            t_sgy['iwor_bytes']=[4,16,4,4]
-            sram_weight_bytes=4
-        elif self.mode==mode.FP32 and self.opti==optimizer.SGD:
-            t_sgy['iwor_bytes']=[4,4,4,4]
+            t_sgy['ior_wsg_bytes']=[4,4,4,4,4+4,4]
             sram_weight_bytes=4
             t_sgy['compute_power_t']=self.t_FP32
+        elif self.mode==mode.FP32 and self.opti==optimizer.SGD:
+            t_sgy['ior_wsg_bytes']=[4,4,4,4,0,4]
+            sram_weight_bytes=4
+            t_sgy['compute_power_t']=self.t_FP32
+        t_sgy['sram_weight_bytes']=sram_weight_bytes
         t_sgy['transformer_num']=0
         op_cnt=0
-        #TODO
         for op in all_ops:
             if op.type==OP.Encoder:
                 t_sgy['transformer_num']+=1
             if op_cnt==0:
-                i_size+=(op.iwor_size[0])*t_sgy['iwor_bytes'][0]#reduce
-            w_size+=(op.iwor_size[1])*t_sgy['iwor_bytes'][1]
-            o_size+=(op.iwor_size[2])*t_sgy['iwor_bytes'][2]
-            r_size+=(op.iwor_size[3])*t_sgy['iwor_bytes'][3]
+                i_size+=(op.iwor_size[0])*t_sgy['ior_wsg_bytes'][0]#reduce
+            w_size+=(op.iwor_size[1])*t_sgy['ior_wsg_bytes'][3]
+            o_size+=(op.iwor_size[2])*t_sgy['ior_wsg_bytes'][1]
+            r_size+=(op.iwor_size[3])*t_sgy['ior_wsg_bytes'][2]
             ops_size+=op.iwor_size[1]
             op_cnt+=1
         ior_recompute_coe=[1,1,1]
@@ -176,11 +169,15 @@ class Tile():
             t_sgy['dataflow']=dataflow.ActStream
         elif act_size<sram_cap:
             t_sgy['dataflow']=dataflow.WeightStream
+        else:
+            t_sgy['dataflow']=dataflow.Stationary
+        '''
         elif act_size>sram_weight_size:
             t_sgy['dataflow']=dataflow.IS
         else:
             t_sgy['dataflow']=dataflow.WS
-            #t_sgy['dram_cap_req_gb_max']+=(i_size+r_size)*GB
+        '''
+        t_sgy['dram_cap_req_gb_max']+=(i_size+r_size)*GB
 
         tile_info='sram_cap={:.3f} GB, sram_weight_size={:.3f} GB, act_size={:.3f} GB, '.format(sram_cap,sram_weight_size,act_size)
         tile_info+='dram_cap_req={:.3f} GB, '.format(t_sgy['dram_cap_req_gb_max'])
@@ -194,35 +191,37 @@ class Tile():
 
     def op_events(self,op:Op,hd:Hardware,t_sgy,state=state.forward):
         compute_power_t=t_sgy['compute_power_t']
-        ibytes=t_sgy['iwor_bytes'][0]
+        sbytes=t_sgy['sram_weight_bytes']
+        dbytes=t_sgy['ior_wsg_bytes']
         df=t_sgy['dataflow']
         events=[]
         transformer_num=t_sgy['transformer_num']
         transformer_cnt=0
+        iwor=op.iwor_size
+        #dbytes[0]+dbytes[1]+dbytes[2]+dbytes[3]+dbytes[4]++dbytes[5]
         while True:
-            #print('op.devices',op.devices)
             if state==state.forward:
                 macs_m=op.fd_macs*Ms
-                events.append(self.env.process(self.compute(macs_m,compute_power_t)))
+                write,read=0,0
                 if df==dataflow.ActStream:
-                    pass
+                    write=(iwor[2]*dbytes[1]+iwor[3]*dbytes[2])*MB
+                    read=(iwor[2]*dbytes[0]+iwor[3]*dbytes[2])*MB
                 elif df==dataflow.WeightStream:
-                    pass
-                elif df==dataflow.IS:
-                    data_size_mb_of_each=(op.iwor_size[0]+op.iwor_size[1]+op.iwor_size[2]+2*op.iwor_size[3])*ibytes*Ms
-                    events.append(self.env.process(hd.tile_gd_access(data_size_mb_of_each,op.devices,write=1,read=1)))
-                    events=[simpy.AllOf(self.env, events)]
-                    
-                    if op.d4d_comm['f']!=[]:
-                        events.append(self.env.process(self.communication(op.d4d_comm['f'],ibytes,hd)))
-                    
+                    write,read=0,(iwor[1])*dbytes[3]*MB
                 else:
-                    data_size_mb_of_each=(op.iwor_size[0]+op.iwor_size[1]+op.iwor_size[2]+2*op.iwor_size[3])*ibytes*Ms
-                    events.append(self.env.process(hd.tile_gd_access(data_size_mb_of_each,op.devices,write=1,read=1)))
-                    events=[simpy.AllOf(self.env, events)]
-                    
-                    if op.d4d_comm['f']!=[]:
-                        events.append(self.env.process(self.communication(op.d4d_comm['f'],ibytes,hd)))
+                    if op.type!=OP.Encoder:
+                        write=iwor[2]*dbytes[1]*MB
+                        read=min(math.ceil(iwor[0]*dbytes[0]*MB/self.t_sram_cap)*iwor[1]*dbytes[3]*MB,\
+                                 math.ceil(iwor[1]*dbytes[3]*MB/self.t_sram_cap)*iwor[0]*dbytes[0]*MB)
+                    else:
+                        coe=0.5*math.ceil(iwor[0]*dbytes[0]*MB/self.t_sram_cap)
+                        write=coe*(iwor[2]*dbytes[1]+iwor[3]*dbytes[2])*MB
+                        read=coe*(iwor[0]*dbytes[0]+iwor[1]*dbytes[3]+iwor[3]*dbytes[2])*MB
+                events.append(self.env.process(self.computation(macs_m,compute_power_t)))
+                events.append(self.env.process(hd.tile_gd_access(write,read,op.devices,write=1,read=1)))
+                events=[simpy.AllOf(self.env, events)]
+                if op.d4d_comm['f']!=[]:
+                    events.append(self.env.process(self.communication(op.d4d_comm['f'],dbytes[0],hd)))
                     
             elif state==state.backward:
                 times_cp=2
@@ -230,70 +229,44 @@ class Tile():
                     transformer_cnt+=1
                     if (transformer_cnt % 2 ==1 and self.recompute==recompute.half) or self.recompute==recompute.full:
                         times_cp=3
-                macs_m=times_cp*op.fd_macs*Ms 
-                events.append(self.env.process(self.compute(macs_m,compute_power_t)))
+                macs_m=times_cp*op.fd_macs*Ms
                 if df==dataflow.ActStream:
-                    pass
+                    write=(iwor[2]*dbytes[0]+iwor[3]*dbytes[2])*MB
+                    read=(iwor[2]*dbytes[0]+iwor[3]*dbytes[2])*MB+(iwor[2]*dbytes[1]+iwor[3]*dbytes[2])*MB
                 elif df==dataflow.WeightStream:
-                    pass
-                elif df==dataflow.IS:
-                    data_size_mb_of_each=(op.iwor_size[0]+op.iwor_size[1]+op.iwor_size[2]+2*op.iwor_size[3])*ibytes*Ms
-                    events.append(self.env.process(hd.tile_gd_access(data_size_mb_of_each,op.devices,write=1,read=1)))
-                    events=[simpy.AllOf(self.env, events)]
-                    if op.d4d_comm['b']!=[]:
-                        events.append(self.env.process(self.communication(op.d4d_comm['b'],ibytes,hd)))
+                    write,read=0,(iwor[1])*dbytes[3]*MB
                 else:
-                    data_size_mb_of_each=(op.iwor_size[0]+op.iwor_size[1]+op.iwor_size[2]+2*op.iwor_size[3])*ibytes*Ms
-                    events.append(self.env.process(hd.tile_gd_access(data_size_mb_of_each,op.devices,write=1,read=1)))
-                    events=[simpy.AllOf(self.env, events)]
-                    if op.d4d_comm['b']!=[]:
-                        events.append(self.env.process(self.communication(op.d4d_comm['b'],ibytes,hd)))
+                    if op.type!=OP.Encoder:
+                        write=iwor[0]*dbytes[0]*MB
+                        read=min(math.ceil(iwor[2]*dbytes[1]*MB/self.t_sram_cap)*iwor[1]*dbytes[3]*MB,\
+                                 math.ceil(iwor[1]*dbytes[3]*MB/self.t_sram_cap)*iwor[2]*dbytes[1]*MB)
+                        read+=min(math.ceil(iwor[0]*dbytes[0]*MB/self.t_sram_cap)*iwor[3]*dbytes[2]*MB,\
+                                 math.ceil(iwor[3]*dbytes[2]*MB/self.t_sram_cap)*iwor[0]*dbytes[0]*MB)
+                    else:
+                        coe=0.5*math.ceil(iwor[0]*dbytes[0]*MB/self.t_sram_cap)
+                        write=coe*(iwor[3]*dbytes[2]+iwor[0]*dbytes[0])*MB
+                        read=coe*(iwor[0]*dbytes[0]+iwor[1]*dbytes[3]+2*iwor[3]*dbytes[0])*MB
+                events.append(self.env.process(self.computation(macs_m,compute_power_t)))
+                events.append(self.env.process(hd.tile_gd_access(write,read,op.devices,write=1,read=1)))
+                events=[simpy.AllOf(self.env, events)]
+                if op.d4d_comm['b']!=[]:
+                    events.append(self.env.process(self.communication(op.d4d_comm['b'],sbytes,hd)))
+                        
             elif state==state.param_sync:
-                    if op.d4d_comm['u']!=[]:
-                        events.append(self.env.process(self.communication(op.d4d_comm['u'],ibytes,hd)))
+                events.append(self.env.process(self.communication(op.d4d_comm['u'],sbytes,hd)))
+                events=[simpy.AllOf(self.env, events)]
+                write,read=(iwor[1])*(dbytes[3])*MB,(iwor[1])*(dbytes[3]+dbytes[4]+dbytes[4])*MB
+                events.append(self.env.process(hd.tile_gd_access(write,read,op.devices,write=1,read=1))) 
             else:#recompute
                 pass
-                #events.append(self.env.timeout(0.001))
             yield simpy.AllOf(self.env, events)
             break
 
     def ops_events(self,ops,hd:Hardware,t_sgy,state=state.forward):
         while(True):
-            #now=self.env.now
             for op in ops:
                 yield  self.env.process(self.op_events(op,hd,t_sgy,state))
-            #print(self.env.now-now,self.env.now)
             break
 
 if __name__ == "__main__":
-    env = simpy.Environment()
-    hd_config=load_config('config/gpu.json')
-    #hd_config=load_config('config/wafer.json')
-    st_config={
-        "recompute":recompute.half,
-        "zero":zero.none,
-        "pipeline":pipe.Dreampipe1F1B,#pipe.GPipe,#
-        "optimizer":optimizer.none,#optimizer.adam,
-        "mode":mode.FP16# FP16 混合精度,FP32 全精度
-    } 
-    sim_config={        
-        "analytical":False,
-        "tile_aggregate":True,
-        "pipe_boost":True,
-        'debug':False
-        }
-    pipe_config={
-        'mini_batch_size':20,
-        'micro_batch_size':1,
-        'pp_stage_num':12
-    }
-    hd = Hardware(env,hd_config,sim_config)
-    tx8=Tile(env,hd_config,st_config,sim_config)
-    op1=Op(hint_name='bert',op_type=OP.Encoder,op_param=[1,512,1024,16,1024*4])
-    #L=96,B=1564,S=2048,H=12288,A=96
-    #op1=Op(hint_name='gpt-3',op_type=OP.Encoder,op_param=[1,2048,12288,96,12288*4])
-    #op1=Op(hint_name='t1',op_type=OP.Linear,op_param=[1,4096,4096,4096])
-    #tiles=[0,1,2,3]
-    tiles=[0]
-    op1.dpmap(p_sgy=[1,1,1,1],devices=tiles)
-    tx8.tile_dataflow([op1],tiles=tiles,pp_infs=1)
+    pass

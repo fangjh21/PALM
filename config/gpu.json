@@ -18,5 +18,5 @@
     "t_INT8(TOPs)":624,
     "t_FP16(TFLOPs)":312,
     "t_FP32(TFLOPs)":19.7,
-    "t_sram_cap(MB)":0
+    "t_sram_cap(MB)":40
 }

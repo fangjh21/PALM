@@ -24,13 +24,20 @@ if __name__ == "__main__":
         'debug':False
         }
     #model=Graph.Encoder(name='T-18B')
-    model=Graph.Encoder(name='T-530B')
-    PP,DP,TP=35,9,8
+    #PP,DP,TP=1,32,8
+    #model=Graph.Encoder(name='T-530B')
+    #PP,DP,TP=35,9,8
+    #model=Graph.Encoder(name='T-76B')
+    #PP,DP,TP=4,32,8
+    model=Graph.Encoder(name='T-145B')
+    PP,DP,TP=8,24,8
+    #model=Graph.Encoder(name='T-310B')
+    #PP,DP,TP=16,15,8
     hd_config["inter_s"]=[PP, DP]
     pipe_config={
         'mini_batch_size':model.batch_size,
         'pp_stage_num':PP,
-        'micro_batch_size':int(model.batch_size/PP),#1
+        'micro_batch_size':int(model.batch_size/PP),
     }
     print(model.batch_size)
     hd = Hardware(env,hd_config,sim_config)

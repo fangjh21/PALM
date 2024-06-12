@@ -36,7 +36,8 @@ def auto_mapping_average_tile(model,hardware,Parallism=[1,1,1,1,1],auto_split=Fa
                 op.dpmap(devices=stage_devices[i],p_sgy=[1,len(stage_devices[i]),1,1])
             else:
                 op.dpmap(devices=stage_devices[i],p_sgy=Parallism[1:])
-    draw_mapping(hardware,'test',tiles=stage_devices,path='sim_visualize',ori=False)
+    if hardware.topo_tpye!='gpu_like':
+        draw_mapping(hardware,'test',tiles=stage_devices,path='sim_visualize',ori=False)
     return stage_devices,stage_ops
         
     

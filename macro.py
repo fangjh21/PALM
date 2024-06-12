@@ -25,7 +25,7 @@ COMM=Enum('COMM',('NONE','AR','AA','AG','RS'))
 optimizer=Enum('optimizer',('none','SGD','adam'))
 mode=Enum('mode',('INT8','FP16','FP32'))
 state=Enum('state',('forward','backward','param_sync','recompute'))
-dataflow=Enum('dataflow',('IS','WS','WeightStream','ActStream'))
+dataflow=Enum('dataflow',('IS','WS','WeightStream','ActStream','Stationary'))
 comp_model=Enum('comp_model',('simple','scale_sim','abrupt_curve'))
 
 store=Enum('store',('cache','weight','ACT','ACT_weight','none'))
